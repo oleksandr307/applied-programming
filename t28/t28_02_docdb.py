@@ -1,115 +1,150 @@
 import json
-import copy
+import os
+from t28_02_collection import Collection
+from t28_02_queries import QueryEngine
+
+MENU = """
+Меню:
+1  - Додати документ
+2  - Видалити документ
+3  - Змінити документ
+4  - Знайти документи
+5  - Агрегація
+6  - Групування
+7  - Зберегти колекцію
+8  - Завантажити колекцію
+9  - Показати всі документи
+10 - Вийти
+"""
 
 
-class Collection:
-    '''Клас для роботи з колекцією JSON-документів.
+def print_documents(docs):
+    if not docs:
+        print("Документів не знайдено.")
+        return
+    for doc in docs:
+        print(json.dumps(doc, indent=2, ensure_ascii=False))
+        print("---")
 
-       Поля:
-       self.documents - список документів (словників)
-       self.next_id - наступний унікальний ідентифікатор
-    '''
 
-    def __init__(self):
-        self.documents = []
-        self.next_id = 1
+def main():
+    collection = Collection()
+    query_engine = QueryEngine(collection)
 
-    def add(self, doc):
-        '''Додає документ до колекції.
+    while True:
+        print(MENU)
+        try:
+            choice = int(input("Оберіть дію: "))
+        except ValueError:
+            print("Введіть число.")
+            continue
 
-           Повертає ідентифікатор нового документа.
-        '''
-        new_doc = copy.deepcopy(doc)
-        new_doc["id"] = self.next_id
-        self.next_id += 1
-        self.documents.append(new_doc)
-        return new_doc["id"]
+        if choice == 1:
+            print("Введіть JSON-документ (без id, він додається автоматично):")
+            try:
+                doc_str = input()
+                doc = json.loads(doc_str)
+                doc_id = collection.add(doc)
+                print(f"Документ додано. ID: {doc_id}")
+            except json.JSONDecodeError:
+                print("Помилка: некоректний JSON.")
 
-    def get_all(self):
-        '''Повертає список усіх документів.'''
-        return self.documents
+        elif choice == 2:
+            key = input("Видалити за id чи за умовою (id/condition): ")
+            if key == "id":
+                try:
+                    doc_id = int(input("ID документа: "))
+                    if collection.delete_by_id(doc_id):
+                        print("Документ видалено.")
+                    else:
+                        print("Документ не знайдено.")
+                except ValueError:
+                    print("ID має бути числом.")
+            elif key == "condition":
+                field = input("Поле: ")
+                operator = input("Оператор (=, >, <, >=, <=, in, exists): ")
+                value = input("Значення: ")
+                count = collection.delete_by_condition(field, operator, value)
+                print(f"Видалено документів: {count}")
+            else:
+                print("Невідома опція.")
 
-    def delete_by_id(self, doc_id):
-        '''Видаляє документ за ідентифікатором.
+        elif choice == 3:
+            key = input("Змінити за id чи за умовою (id/condition): ")
+            field = input("Поле для оновлення: ")
+            new_value_str = input("Нове значення (як JSON): ")
+            try:
+                new_value = json.loads(new_value_str)
+            except json.JSONDecodeError:
+                new_value = new_value_str
 
-           Повертає True, якщо документ видалено, інакше False.
-        '''
-        for i, doc in enumerate(self.documents):
-            if doc.get("id") == doc_id:
-                del self.documents[i]
-                return True
-        return False
+            if key == "id":
+                try:
+                    doc_id = int(input("ID документа: "))
+                    if collection.update_by_id(doc_id, field, new_value):
+                        print("Документ оновлено.")
+                    else:
+                        print("Документ не знайдено.")
+                except ValueError:
+                    print("ID має бути числом.")
+            elif key == "condition":
+                cond_field = input("Поле для умови: ")
+                operator = input("Оператор (=, >, <, >=, <=, in, exists): ")
+                value = input("Значення: ")
+                count = collection.update_by_condition(cond_field, operator, value, field, new_value)
+                print(f"Оновлено документів: {count}")
+            else:
+                print("Невідома опція.")
 
-    def delete_by_condition(self, field, operator, value):
-        '''Видаляє документи, що задовольняють умову.
+        elif choice == 4:
+            field = input("Поле: ")
+            operator = input("Оператор (=, >, <, >=, <=, in, exists): ")
+            value = input("Значення: ")
+            results = query_engine.find(field, operator, value)
+            print_documents(results)
 
-           Повертає кількість видалених документів.
-        '''
-        from t28_02_queries import QueryEngine
-        qe = QueryEngine(self)
-        to_delete = qe.find(field, operator, value)
-        count = len(to_delete)
-        for doc in to_delete:
-            self.documents.remove(doc)
-        return count
+        elif choice == 5:
+            operation = input("Операція (count, sum, avg, min, max): ")
+            field = input("Поле: ")
+            try:
+                result = query_engine.aggregate(operation, field)
+                print(f"Результат: {result}")
+            except Exception as e:
+                print(f"Помилка: {e}")
 
-    def update_by_id(self, doc_id, field, new_value):
-        '''Оновлює поле field документа за ідентифікатором.
+        elif choice == 6:
+            field = input("Поле для групування: ")
+            try:
+                groups = query_engine.group_by(field)
+                for key, docs in groups.items():
+                    print(f"Група '{key}': {len(docs)} документ(ів)")
+            except Exception as e:
+                print(f"Помилка: {e}")
 
-           Повертає True, якщо документ оновлено, інакше False.
-        '''
-        for doc in self.documents:
-            if doc.get("id") == doc_id:
-                self._set_nested_field(doc, field, new_value)
-                return True
-        return False
+        elif choice == 7:
+            filename = input("Ім'я файлу: ")
+            collection.save(filename)
+            print(f"Колекцію збережено у файл {filename}")
 
-    def update_by_condition(self, cond_field, operator, cond_value, field, new_value):
-        '''Оновлює поле field для документів, що задовольняють умову.
+        elif choice == 8:
+            filename = input("Ім'я файлу: ")
+            if os.path.exists(filename):
+                collection.load(filename)
+                print(f"Колекцію завантажено з файлу {filename}")
+            else:
+                print("Файл не знайдено.")
 
-           Повертає кількість оновлених документів.
-        '''
-        from t28_02_queries import QueryEngine
-        qe = QueryEngine(self)
-        to_update = qe.find(cond_field, operator, cond_value)
-        for doc in to_update:
-            self._set_nested_field(doc, field, new_value)
-        return len(to_update)
+        elif choice == 9:
+            docs = collection.get_all()
+            print_documents(docs)
 
-    def _set_nested_field(self, doc, field, value):
-        '''Встановлює значення вкладеного поля в документі.'''
-        keys = field.split(".")
-        current = doc
-        for key in keys[:-1]:
-            if key not in current:
-                current[key] = {}
-            current = current[key]
-        current[keys[-1]] = value
+        elif choice == 10:
+            print("Завершення роботи.")
+            break
 
-    def _get_nested_value(self, doc, field):
-        '''Отримує значення вкладеного поля з документа.
-
-           Якщо поля немає, повертає None.
-        '''
-        keys = field.split(".")
-        current = doc
-        for key in keys:
-            if not isinstance(current, dict) or key not in current:
-                return None
-            current = current[key]
-        return current
-
-    def save(self, filename):
-        '''Зберігає колекцію у файл.'''
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(self.documents, f, indent=4, ensure_ascii=False)
-
-    def load(self, filename):
-        '''Завантажує колекцію з файлу.'''
-        with open(filename, "r", encoding="utf-8") as f:
-            self.documents = json.load(f)
-        if self.documents:
-            max_id = max(doc.get("id", 0) for doc in self.documents)
-            self.next_id = max_id + 1
         else:
-            self.next_id = 1
+            print("Невірний вибір.")
+
+
+if __name__ == "__main__":
+    main()
