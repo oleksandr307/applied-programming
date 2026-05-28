@@ -1,0 +1,83 @@
+import socket
+import re
+from datetime import datetime
+
+def parse_date(date_str):
+    date_str = date_str.strip()
+    date_str = re.sub(r'\s+', '', date_str)
+    m = re.match(r'(\d{1,2})\.(\d{1,2})\.(\d{4})$', date_str)
+    if m:
+        d, mnt, y = m.groups()
+        d, mnt = d.zfill(2), mnt.zfill(2)
+        dt = datetime.strptime(f'{d}.{mnt}.{y}', '%d.%m.%Y')
+        return dt.strftime('%Y-%m-%d')
+    m = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2})$', date_str)
+    if m:
+        y, mnt, d = m.groups()
+        mnt, d = mnt.zfill(2), d.zfill(2)
+        dt = datetime.strptime(f'{y}-{mnt}-{d}', '%Y-%m-%d')
+        return dt.strftime('%Y-%m-%d')
+    m = re.match(r'(\d{1,2})/(\d{4})/(\d{1,2})$', date_str)
+    if m:
+        mnt, y, d = m.groups()
+        mnt, d = mnt.zfill(2), d.zfill(2)
+        dt = datetime.strptime(f'{d}.{mnt}.{y}', '%d.%m.%Y')
+        return dt.strftime('%Y-%m-%d')
+    raise ValueError('Невідомий формат дати')
+
+def normalize_phone(phone):
+    original = phone.strip()
+    if original.startswith('+'):
+        digits = re.sub(r'[^0-9]', '', original[1:])
+        return '+' + digits
+    digits = re.sub(r'[^0-9]', '', original)
+    if len(digits) == 10 and digits.startswith('0'):
+        return '+38' + digits[1:]
+    if len(digits) == 12 and digits.startswith('380'):
+        return '+' + digits
+    return '+' + digits
+
+def validate_and_normalize(line):
+    pattern = r'^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+?)\s+([+\d].*)$'
+    m = re.match(pattern, line)
+    if not m:
+        return None
+    surname, name, patronymic, ticket, date_raw, phone_raw = m.groups()
+    if not all([surname, name, patronymic, ticket]):
+        return None
+    try:
+        date_norm = parse_date(date_raw)
+    except ValueError:
+        return None
+    try:
+        phone_norm = normalize_phone(phone_raw)
+        if len(re.sub(r'[^0-9]', '', phone_norm)) < 10:
+            return None
+    except:
+        return None
+    return f"{surname} {name} {patronymic} {ticket} {date_norm} {phone_norm}"
+
+HOST = ''
+PORT = 20003
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen(1)
+print('Сервер очікує з’єднання...')
+conn, addr = s.accept()
+print('Під’єднано:', addr)
+
+with open('students.txt', 'a', encoding='utf-8') as f:
+    while True:
+        data = conn.recv(1024)
+        if not data:
+            break
+        line = data.decode('utf-8').strip()
+        normalized = validate_and_normalize(line)
+        if normalized:
+            f.write(normalized + '\n')
+            f.flush()
+            conn.sendall(b'\n')
+        else:
+            conn.sendall(line.encode('utf-8') + b'\n')
+conn.close()
