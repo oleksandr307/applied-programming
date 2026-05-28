@@ -1,0 +1,61 @@
+import random
+import threading
+import queue
+import numpy as np
+
+N = 500
+m = 5
+t_open = 30
+t1 = 5
+T_early = 120
+num_runs = 1000
+
+def simulate_one_run(N, m, t_open, t1, T_early):
+    arrivals = sorted([random.uniform(-T_early, 0) for _ in range(N)])
+    servers = [-t_open] * m
+    max_success_arrival = -float('inf')
+    
+    for arr in arrivals:
+        server_idx = min(range(m), key=lambda i: servers[i])
+        start_time = max(arr, servers[server_idx])
+        service = random.uniform(1, t1)
+        finish = start_time + service
+        if finish <= 0:
+            max_success_arrival = max(max_success_arrival, arr)
+        servers[server_idx] = finish
+    
+    return max_success_arrival if max_success_arrival > -float('inf') else -T_early
+
+result_queue = queue.Queue()
+
+def run_producer():
+    res = simulate_one_run(N, m, t_open, t1, T_early)
+    result_queue.put(res)
+
+def result_collector(expected_runs):
+    results = []
+    while len(results) < expected_runs:
+        try:
+            val = result_queue.get(timeout=0.1)
+            results.append(val)
+        except:
+            pass
+    quantile_90 = np.quantile(results, 0.1)
+    print(f"Мінімальний час до початку матчу (90% імовірність): {-quantile_90:.1f} хв")
+
+def main():
+    collector_thread = threading.Thread(target=result_collector, args=(num_runs,))
+    collector_thread.start()
+
+    threads = []
+    for _ in range(num_runs):
+        t = threading.Thread(target=run_producer)
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+    collector_thread.join()
+
+if __name__ == "__main__":
+    main()
