@@ -1,0 +1,38 @@
+import socket
+import threading
+
+def handle_pair(conn1, addr1, conn2, addr2):
+    try:
+        conn1.sendall(b'START 1\n')
+        conn2.sendall(b'START 2\n')
+        while True:
+            msg1 = conn1.recv(1024)
+            if not msg1 or msg1.strip() == b'exit':
+                conn2.sendall(b'Співрозмовник вийшов.\n')
+                break
+            conn2.sendall(msg1)
+            msg2 = conn2.recv(1024)
+            if not msg2 or msg2.strip() == b'exit':
+                conn1.sendall(b'Співрозмовник вийшов.\n')
+                break
+            conn1.sendall(msg2)
+    finally:
+        conn1.close()
+        conn2.close()
+
+HOST = ''
+PORT = 20005
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((HOST, PORT))
+s.listen(2)
+print('Чат-сервер очікує двох клієнтів...')
+conn1, addr1 = s.accept()
+print('Клієнт 1:', addr1)
+print('Очікування другого клієнта...')
+conn2, addr2 = s.accept()
+print('Клієнт 2:', addr2)
+s.close()
+
+threading.Thread(target=handle_pair, args=(conn1, addr1, conn2, addr2), daemon=True).start()
+input('Натисніть Enter для завершення сервера\n')
