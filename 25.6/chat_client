@@ -1,0 +1,36 @@
+import socket
+
+HOST = 'localhost'
+PORT = 20005
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
+
+start_msg = s.recv(1024).decode().strip()
+print('Стан:', start_msg)
+
+if start_msg == 'START 1':
+    print('Ви починаєте діалог. Для виходу введіть "exit".')
+    while True:
+        my_msg = input('Ви: ')
+        s.sendall(my_msg.encode('utf-8'))
+        if my_msg.lower() == 'exit':
+            break
+        reply = s.recv(1024)
+        if not reply or reply.strip() == b'Співрозмовник вийшов.':
+            print('Співрозмовник вийшов.')
+            break
+        print('Співрозмовник:', reply.decode('utf-8').strip())
+else:
+    print('Очікуйте повідомлення від співрозмовника. Для виходу введіть "exit".')
+    while True:
+        incoming = s.recv(1024)
+        if not incoming or incoming.strip() == b'Співрозмовник вийшов.':
+            print('Співрозмовник вийшов.')
+            break
+        print('Співрозмовник:', incoming.decode('utf-8').strip())
+        my_msg = input('Ви: ')
+        s.sendall(my_msg.encode('utf-8'))
+        if my_msg.lower() == 'exit':
+            break
+s.close()
