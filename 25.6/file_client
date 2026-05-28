@@ -1,0 +1,32 @@
+import socket
+import os
+
+HOST = 'localhost'
+PORT = 20004
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
+
+while True:
+    file_path = input('Шлях до файлу (Enter для виходу): ').strip()
+    if not file_path:
+        break
+    if not os.path.isfile(file_path):
+        print('Файл не знайдено')
+        continue
+    file_name = os.path.basename(file_path)
+    file_size = os.path.getsize(file_path)
+
+    name_bytes = file_name.encode('utf-8')
+    s.sendall(len(name_bytes).to_bytes(4, 'big'))
+    s.sendall(name_bytes)
+    s.sendall(file_size.to_bytes(8, 'big'))
+    with open(file_path, 'rb') as f:
+        while True:
+            chunk = f.read(4096)
+            if not chunk:
+                break
+            s.sendall(chunk)
+    resp = s.recv(1024)
+    print('Сервер:', resp.decode().strip())
+s.close()
