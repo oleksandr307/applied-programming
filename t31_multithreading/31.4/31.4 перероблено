@@ -1,0 +1,55 @@
+import time
+import random
+import threading
+from collections import deque
+
+delay_producer = 0.7
+delay_consumer = 1.1
+
+class PriorityBuffer(deque):
+    def __init__(self):
+        super().__init__()
+
+    def add(self, item):
+        text, priority = item
+        if priority == 0:
+            super().append(text)
+        else:
+            super().appendleft(text)
+
+    def take(self):
+        return super().pop()
+
+buffer = PriorityBuffer()
+
+def word_producer(max_delay: float):
+    words = ["sun", "moon", "stars", "sky", "cloud", "rain", "snow"]
+    n = len(words)
+    while True:
+        time.sleep(random.uniform(0, max_delay))
+        bits = bin(random.randint(1, 2**n - 1))[2:].zfill(n)
+        selected = []
+        for i, bit in enumerate(bits):
+            if bit == '1':
+                selected.append(words[i])
+        priority = random.randint(0, 1)
+        buffer.add((" ".join(selected), priority))
+
+def word_consumer(max_delay: float):
+    while True:
+        time.sleep(random.uniform(0, max_delay))
+        msg = buffer.take()
+        print(msg)
+
+def main():
+    t1 = threading.Thread(target=word_producer, args=(delay_producer,))
+    t2 = threading.Thread(target=word_consumer, args=(delay_consumer,))
+
+    t1.start()
+    t2.start()
+
+    t1.join()
+    t2.join()
+
+if __name__ == "__main__":
+    main()
