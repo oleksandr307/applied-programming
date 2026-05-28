@@ -1,0 +1,19 @@
+import socket
+
+HOST = 'localhost'
+PORT = 20003
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
+print("Введіть рядок із даними студента (Прізвище Ім'я Побатькові квиток дата телефон). Порожній рядок – вихід.")
+while True:
+    line = input('> ')
+    if not line:
+        break
+    s.sendall(line.encode('utf-8'))
+    resp = s.recv(1024)
+    if resp == b'\n':
+        print('OK – дані збережено.')
+    else:
+        print('Помилка у рядку:', resp.decode('utf-8').strip())
+s.close()
