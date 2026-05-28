@@ -1,0 +1,63 @@
+import time
+import random
+import threading
+import queue
+
+delay_a = 0.7
+delay_b = 1.0
+
+q_a_to_b = queue.Queue()
+q_b_to_a = queue.Queue()
+
+def speaker_a(max_delay: float):
+    words_pool = ["сонце", "море", "гори", "ліс", "небо", "трава", "вітер"]
+    n = len(words_pool)
+    while True:
+        time.sleep(random.uniform(0, max_delay))
+        mask = bin(random.randint(1, 2**n - 1))[2:].zfill(n)
+        phrase = []
+        for i, bit in enumerate(mask):
+            if bit == '1':
+                phrase.append(words_pool[i])
+        q_a_to_b.put('А: ' + ' '.join(phrase))
+
+def speaker_b(max_delay: float):
+    words_pool = ["кава", "чай", "молоко", "сік", "вода", "лимонад", "компот"]
+    n = len(words_pool)
+    while True:
+        time.sleep(random.uniform(0, max_delay))
+        mask = bin(random.randint(1, 2**n - 1))[2:].zfill(n)
+        phrase = []
+        for i, bit in enumerate(mask):
+            if bit == '1':
+                phrase.append(words_pool[i])
+        q_b_to_a.put('Б: ' + ' '.join(phrase))
+
+def listener_a():
+    while True:
+        msg = q_b_to_a.get()
+        print(msg)
+
+def listener_b():
+    while True:
+        msg = q_a_to_b.get()
+        print(msg)
+
+def main():
+    t1 = threading.Thread(target=speaker_a, args=(delay_a,))
+    t2 = threading.Thread(target=listener_b, args=())
+    t3 = threading.Thread(target=speaker_b, args=(delay_b,))
+    t4 = threading.Thread(target=listener_a, args=())
+
+    t1.start()
+    t2.start()
+    t3.start()
+    t4.start()
+
+    t1.join()
+    t2.join()
+    t3.join()
+    t4.join()
+
+if __name__ == "__main__":
+    main()
